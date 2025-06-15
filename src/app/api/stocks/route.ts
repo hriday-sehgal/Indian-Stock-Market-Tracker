@@ -27,8 +27,52 @@ const STOCK_SECTORS: { [key: string]: string } = {
 
 const DEFAULT_STOCKS = Object.keys(STOCK_SECTORS);
 
+// Rate limiting setup
+const RATE_LIMIT = 100; // requests per minute
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute in milliseconds
+const requestCounts = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+
+  // Get existing requests for this IP
+  const requests = requestCounts.get(ip) || [];
+
+  // Remove old requests outside the window
+  const recentRequests = requests.filter((time) => time > windowStart);
+
+  // Check if rate limit is exceeded
+  if (recentRequests.length >= RATE_LIMIT) {
+    return true;
+  }
+
+  // Add new request
+  recentRequests.push(now);
+  requestCounts.set(ip, recentRequests);
+  return false;
+}
+
 export async function GET(request: Request) {
   try {
+    // Get client IP
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+
+    // Check rate limit
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        {
+          status: 429,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const customSymbols = searchParams.get("customSymbols")?.split(",") || [];
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -67,12 +111,40 @@ export async function GET(request: Request) {
       dayLow: quote.regularMarketDayLow,
     }));
 
-    return NextResponse.json(stocks);
+    return NextResponse.json(stocks, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
+      },
+    });
   } catch (error) {
     console.error("Error fetching stock data:", error);
     return NextResponse.json(
       { error: "Failed to fetch stock data" },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        },
+      }
     );
   }
+}
+
+// Handle OPTIONS request for CORS
+export async function OPTIONS() {
+  return NextResponse.json(
+    {},
+    {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    }
+  );
 }

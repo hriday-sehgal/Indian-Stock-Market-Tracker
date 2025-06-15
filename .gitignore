@@ -22,6 +22,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
+.context.md
 
 # debug
 npm-debug.log*
@@ -108,3 +109,4 @@ out
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
