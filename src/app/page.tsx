@@ -30,9 +30,17 @@ export const metadata = {
 function MarketTimings() {
   const now = new Date();
   const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+
+  // Convert current time to IST (UTC+5:30)
+  const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+  const currentHour = istTime.getHours();
+  const currentMinute = istTime.getMinutes();
+
+  // Market is open from 9:15 AM to 3:30 PM IST on weekdays
   const isMarketOpen =
-    (!isWeekend && now.getHours() >= 9 && now.getHours() < 15) ||
-    (now.getHours() === 15 && now.getMinutes() <= 30);
+    !isWeekend &&
+    (currentHour > 9 || (currentHour === 9 && currentMinute >= 15)) &&
+    (currentHour < 15 || (currentHour === 15 && currentMinute <= 30));
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
